@@ -46,81 +46,87 @@ void *thread_search(void *dataptr)
     string_data->count = string_data->count + count;
 }
 
+int file_size(FILE *ptr)
+{ 
+    int size;
+    fseek(ptr, 0, SEEK_END);
+    size = ftell(ptr);
+    fseek(ptr, 0, SEEK_SET);
+    return size;
+}
+
+char* file_division(FILE *ptr , int division_size, char *find_string, int find_size, int n)
+{
+    int k = 0,j;
+    int actual_size;
+    char temp_char;
+    char *divided_string = (char *)calloc(1,division_size+1);;
+    fread(divided_string, 1, division_size, ptr);
+    actual_size = strlen(divided_string);
+    for(j=0; j<find_size; j++)
+    {
+        if(divided_string[actual_size-1]==find_string[j])
+        {
+            break;
+        }
+    }
+    if(find_size!=(j+1))
+    {
+        while(!feof(ptr))
+        {
+            if(divided_string[actual_size+k-1]==find_string[j])
+            {
+                k++;
+                temp_char = fgetc(ptr);
+                j = (j+1)%find_size;
+                if(temp_char == find_string[j])
+                {
+                    divided_string = (char *)realloc(divided_string, actual_size+k);
+                    divided_string[actual_size+k-1] = temp_char;
+                }
+                else
+                {
+                    fseek(ptr, -1, SEEK_CUR);
+                    return divided_string;
+                }
+            }
+            else
+            {
+                return divided_string;
+            }
+        }
+    }
+    return divided_string;
+}
+
 int main()
 {
+    int extra_char_count,char_count,find_size,count=0,i,division_size;
     int n = 4;
     pthread_t t[n];
     struct data string_data[n];
     FILE *ptr;
-    int a,i,j,k,flag,s,k_count,extra_char,count,char_count,find_size;
-    char ch;
     char find_string[100];
+
     printf("Input the string to search : ");
     scanf("%[^\n]s", find_string);
     find_size = strlen(find_string);
+
     ptr = fopen("text.txt", "r");
-    count = 0;
-    flag = 1;
-    fseek(ptr, 0, SEEK_END);
-    char_count = ftell(ptr);
-    fseek(ptr, 0, SEEK_SET);
-    a = (int)char_count/n; 
-    extra_char = (int)char_count%n; 
-    k_count = 0; 
-    for(i=0; i<n; i++) 
-    { 
-        k=0; 
-        if(i==n-1) 
-        {
-            s = a+extra_char;
-            string_data[i].string = (char *)calloc(1,s+1); 
-            fread(string_data[i].string, 1, s, ptr);
-        }
-        else
-        {
-            string_data[i].string = (char *)calloc(1,a+1); 
-            fread(string_data[i].string, 1, a, ptr);
-            s = strlen(string_data[i].string);
-            j=0;
-            for(j=0; j<find_size; j++)
-            {
-                if(string_data[i].string[s-1]==find_string[j])
-                {
-                    break;
-                }
-            }
-            if(find_size!=(j+1))
-            {
-                while(flag)
-                {
-                    if(string_data[i].string[s+k-1]==find_string[j] && k<char_count-a)
-                    {
-                        k++;
-                        ch = fgetc(ptr);
-                        j = (j+1)%find_size;
-                        if(ch == find_string[j])
-                        {
-                            string_data[i].string = (char *)realloc(string_data[i].string, s+k);
-                            string_data[i].string[s+k-1] = ch;
-                        }
-                        else
-                        {
-                            flag = 0;
-                            fseek(ptr, -1, SEEK_CUR);
-                        }
-                    }
-                    else
-                    {
-                        flag = 0;
-                    }
-                }
-            }
-            flag = 1;
-        }
-        k_count = k + k_count;
-        string_data[i].string_find = (char *)malloc(find_size);
+    char_count = file_size(ptr);
+    extra_char_count = (int)char_count%n; 
+    division_size = (int)char_count/n;
+    for(i=0; i<n; i++)
+    {
+        if(i==n-1)
+            division_size = division_size + extra_char_count;
+
+        string_data[i].string = (char *)calloc(1,division_size+1);
+        strcpy(string_data[i].string, file_division(ptr , division_size, find_string, find_size, n));
+        string_data[i].string_find = (char *)calloc(1,find_size+1);
         strcpy(string_data[i].string_find, find_string);
         string_data[i].count = 0;
+        
         pthread_create(&t[i], NULL, thread_search, (void *)&string_data[i]);
     }
     for(i=0; i<n; i++)
